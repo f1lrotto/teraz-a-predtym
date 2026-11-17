@@ -4,7 +4,7 @@ A swipe map of Slovakia: one era on the left, another on the right, and a divide
 
 - `catalog/layers.json`: every layer (tile URL, zoom limit, coverage box, attribution). The frontend and the Worker both read it; adding a layer is a data change. Set `"disabled": true` on a layer, or `"cityExtras": false`, to switch layers off.
 - `src/`: Svelte 5 + MapLibre GL frontend, built to `dist/`.
-- `worker/` and `wrangler.toml`: one Cloudflare Worker that serves `dist/` as static assets and runs the tile cache for the slow WMS servers (MŽP geocloud, city servers). `GET /t/{layer}/{z}/{x}/{y}` → 512 px GetMap, cached 30 days (7 for recent layers), at most 4 parallel upstream requests per server. Esri tiles never pass through it.
+- `worker/` and `wrangler.toml`: one Cloudflare Worker that serves `dist/` as static assets and runs the tile cache for the slow WMS servers (MŽP geocloud, city servers). `GET /t/{layer}/{z}/{x}/{y}` → 512 px GetMap, cached 30 days (7 for recent layers). Esri tiles never pass through it.
 - `public/overlay/`: Slovakia's border (OpenStreetMap) and place names (GeoNames, CC BY 4.0) drawn above every era; rebuild with `python3 scripts/build_overlay.py`.
 - `scripts/refresh_catalog.py`: weekly check (GitHub Actions, `.github/workflows/catalog.yml`). Marks layers whose sample tile fails as `broken` (the site and Worker hide them), updates the Esri capture-date release, and reports new layers at the sources in a pull request.
 

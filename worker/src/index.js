@@ -4,23 +4,6 @@
 import { catalog, layerById, tileBbox, wmsUrl } from '../../catalog/tiles.js';
 
 const DAY = 86400;
-const MAX_PARALLEL_PER_HOST = 4;
-
-// Per-isolate limit on parallel upstream requests to one server.
-const slots = new Map();
-async function limited(host, fn) {
-  let s = slots.get(host);
-  if (!s) slots.set(host, (s = { active: 0, queue: [] }));
-  if (s.active >= MAX_PARALLEL_PER_HOST) await new Promise((resolve) => s.queue.push(resolve));
-  s.active++;
-  try {
-    return await fn();
-  } finally {
-    s.active--;
-    s.queue.shift()?.();
-  }
-}
-
 const cors = { 'Access-Control-Allow-Origin': '*' };
 
 function cacheSeconds(layer) {
@@ -48,9 +31,9 @@ export default {
     if (hit) return hit;
 
     const upstreamUrl = wmsUrl(layer, tileBbox(z, x, y));
-    const upstream = await limited(new URL(layer.url).host, () =>
-      fetch(upstreamUrl, { headers: { 'User-Agent': 'kedysi-a-dnes tile cache' } }),
-    );
+    // No per-server queue here: a Worker request may not wait on a promise that another request resolves
+    // (the runtime cancels it as hung), and an isolate-local limit would not bound the total anyway.
+    const upstream = await fetch(upstreamUrl, { headers: { 'User-Agent': 'kedysi-a-dnes tile cache' } });
     const type = upstream.headers.get('Content-Type') || '';
     if (!upstream.ok || !type.startsWith('image/')) {
       return new Response(`Upstream ${upstream.status}`, { status: 502, headers: { ...cors, 'Cache-Control': 'no-store' } });
