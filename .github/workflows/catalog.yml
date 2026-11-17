@@ -1,0 +1,27 @@
+name: Weekly catalog check
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python3 scripts/refresh_catalog.py "$RUNNER_TEMP/report.md"
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: catalog-refresh
+          commit-message: Refresh layer catalog
+          title: Weekly layer catalog refresh
+          body-path: ${{ runner.temp }}/report.md
+          add-paths: catalog/layers.json
