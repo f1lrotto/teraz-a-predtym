@@ -15,7 +15,9 @@
   import EraPicker from './EraPicker.svelte';
   import PhotoCard from './PhotoCard.svelte';
   import SearchBox from './SearchBox.svelte';
-  import { available, byId, inBounds, nearestNational, sourceFor } from './lib/layers.js';
+  import ConsentBanner from './ConsentBanner.svelte';
+  import { available, byId, erasAt, inBounds, nearestNational, sourceFor } from './lib/layers.js';
+  import * as analytics from './lib/analytics.js';
   import { captureDate } from './lib/capture.js';
   import { readView, writeView } from './lib/permalink.js';
 
@@ -42,6 +44,8 @@
   let photo = $state(null);
   // true or false once /geo answers; null until then (EU-only eras stay offered meanwhile).
   let eu = $state(null);
+  let consentAsked = $state(false);
+  analytics.onConsent((status) => (consentAsked = status === 'pending'));
 
   let stage, topEl, bottomEl;
   let topMap, bottomMap;
@@ -152,6 +156,9 @@
       if (typeof p.now === 'string') p.now = JSON.parse(p.now);
       [p.lng, p.lat] = f.geometry.coordinates;
       photo = p;
+      analytics.track('photo_opened', {
+        title: p.title, date: p.date, proof: p.proof, approx: p.approx, has_rephoto: !!p.now, page: p.page,
+      });
     });
     map.on('click', 'photo-clusters', async (e) => {
       const f = e.features[0];
@@ -202,12 +209,37 @@
     if (id === 'esri') esriDown = false;
   }
 
+  // Layers that already reported a failed tile this visit: one layer_failed event each.
+  const failedLayers = new Set();
+
   function track(map, key) {
     map.on('dataloading', () => (loading[key] = true));
     map.on('idle', () => (loading[key] = false));
     map.on('error', (e) => {
-      if (map.era === 'esri' && [401, 403, 429].includes(e.error?.status)) esriDown = true;
+      if (e.sourceId !== 'era') return;
+      const status = e.error?.status ?? null;
+      if (map.era === 'esri' && [401, 403, 429].includes(status)) {
+        if (!esriDown) analytics.track('esri_unavailable', { status });
+        esriDown = true;
+      }
+      if (!failedLayers.has(map.era)) {
+        failedLayers.add(map.era);
+        analytics.track('layer_failed', { layer: map.era, status });
+      }
     });
+  }
+
+  // Where people look: once the view has been still for 2 s, at most once per ~1 km cell and zoom level per visit.
+  const viewedCells = new Set();
+  let viewTimer;
+  function viewed() {
+    const { lng, lat } = topMap.getCenter();
+    const zoom = Math.round(topMap.getZoom());
+    const cell = `${lat.toFixed(2)}/${lng.toFixed(2)}/${zoom}`;
+    if (viewedCells.has(cell)) return;
+    viewedCells.add(cell);
+    const city = erasAt(lng, lat).cities[0]?.name ?? null;
+    analytics.track('map_viewed', { lat: +lat.toFixed(2), lng: +lng.toFixed(2), zoom, city });
   }
 
   onMount(() => {
@@ -216,8 +248,14 @@
     addEventListener('resize', updateOrientation);
     fetch('/geo')
       .then((r) => r.json())
-      .then((g) => (eu = g.eu))
-      .catch(() => {});
+      .then((g) => {
+        eu = g.eu;
+        // PostHog's own country lookup is missing on cookieless events.
+        analytics.context({ country: g.country, in_eu: g.eu });
+      })
+      .catch(() => {})
+      // The one pageview per visit, once it can carry the country.
+      .finally(() => analytics.track('$pageview'));
 
     bottomMap = makeMap(bottomEl);
     topMap = makeMap(topEl);
@@ -233,7 +271,11 @@
     topMap.on('moveend', () => {
       const c = topMap.getCenter();
       center = { lng: c.lng, lat: c.lat, zoom: topMap.getZoom() };
+      clearTimeout(viewTimer);
+      viewTimer = setTimeout(viewed, 2000);
     });
+    topMap.on('movestart', () => clearTimeout(viewTimer));
+    topMap.once('load', viewed);
     track(topMap, 'top');
     track(bottomMap, 'bottom');
     let loaded = 0;
@@ -255,6 +297,7 @@
     return () => {
       removeEventListener('resize', updateOrientation);
       removeEventListener('hashchange', onHash);
+      clearTimeout(viewTimer);
       topMap.remove();
       bottomMap.remove();
     };
@@ -281,6 +324,15 @@
     if (ready) topMap.getContainer().style.opacity = mode === 'opacity' ? String(opacity) : '1';
   });
 
+  // Sent with every analytics event.
+  // A reload keeps the hash, so only a fresh visit with one counts as arriving on a permalink.
+  const entry = start.from === 'permalink' && performance.getEntriesByType('navigation')[0]?.type === 'reload' ? 'reload' : start.from;
+  $effect(() => {
+    analytics.context({
+      entry, left_era: left, right_era: right, compare_mode: mode, photos_on: photosOn, labels_on: labels, portrait, in_eu: eu,
+    });
+  });
+
   // Keep the URL and the remembered view current.
   $effect(() => writeView({ ...center, left, right }));
 
@@ -296,8 +348,7 @@
       notice = outsideCity
         ? `${layer.title} → ${next.label}: mimo mesta už nie sú dáta`
         : `${layer.label} → ${next.label}: letecká snímka GKÚ je dostupná len v EÚ`;
-      if (side === 'left') left = next.id;
-      else right = next.id;
+      setEraOn(side, next.id, outsideCity ? 'outside_city' : 'not_in_eu');
       setTimeout(() => (notice = ''), 4000);
     }
   });
@@ -318,6 +369,7 @@
 
   function startDrag(e) {
     e.preventDefault();
+    const first = hint;
     hint = false;
     localStorage.setItem('kad:hinted', '1');
     const el = e.currentTarget;
@@ -328,6 +380,7 @@
       split = Math.min(0.98, Math.max(0.02, f));
     };
     const up = () => {
+      analytics.track('divider_dragged', { split: +split.toFixed(2), first });
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', up);
@@ -350,25 +403,44 @@
   async function share() {
     const url = location.href;
     if (navigator.share) {
+      let completed = true;
       try {
         await navigator.share({ title: 'Kedysi a dnes', url });
-      } catch {}
+      } catch {
+        completed = false;
+      }
+      analytics.track('share_clicked', { method: 'native', completed });
       return;
     }
     await navigator.clipboard.writeText(url);
+    analytics.track('share_clicked', { method: 'clipboard', completed: true });
     notice = 'Odkaz je skopírovaný';
     setTimeout(() => (notice = ''), 2500);
   }
 
-  function pick(id) {
-    if (picker === 'left') left = id;
+  // `via` says why the era changed: the visitor picked it, or the site switched it (outside_city, not_in_eu, esri_down).
+  function setEraOn(side, id, via) {
+    const from = side === 'left' ? left : right;
+    if (from === id) return;
+    analytics.track('era_changed', { side, from, to: id, group: byId(id).group, via });
+    if (side === 'left') left = id;
     else right = id;
+  }
+
+  function pick(id) {
+    setEraOn(picker, id, 'picker');
     picker = null;
   }
 
   function useFallback(id) {
-    if (left === 'esri') left = id;
-    if (right === 'esri') right = id;
+    if (left === 'esri') setEraOn('left', id, 'esri_down');
+    if (right === 'esri') setEraOn('right', id, 'esri_down');
+  }
+
+  function setMode(next) {
+    if (mode === next) return;
+    mode = next;
+    analytics.track('compare_mode_changed', { mode });
   }
 </script>
 
@@ -426,6 +498,10 @@
       <PhotoCard {photo} onclose={() => (photo = null)} />
     {/if}
 
+    {#if consentAsked}
+      <ConsentBanner onclose={() => (consentAsked = false)} />
+    {/if}
+
     {#if picker}
       <EraPicker side={picker} selected={picker === 'left' ? left : right} {center} {eu} onpick={pick} onclose={() => (picker = null)} />
     {/if}
@@ -438,8 +514,8 @@
       <Share2 size={16} /><span>Zdieľať</span>
     </button>
     <div class="seg" role="group" aria-label="Spôsob porovnania">
-      <button aria-pressed={mode === 'swipe'} onclick={() => (mode = 'swipe')}><Columns2 size={16} />Slider</button>
-      <button aria-pressed={mode === 'opacity'} onclick={() => (mode = 'opacity')}><Blend size={16} />Priehľadnosť</button>
+      <button aria-pressed={mode === 'swipe'} onclick={() => setMode('swipe')}><Columns2 size={16} />Slider</button>
+      <button aria-pressed={mode === 'opacity'} onclick={() => setMode('opacity')}><Blend size={16} />Priehľadnosť</button>
     </div>
     {#if mode === 'opacity'}
       <!-- Older era on the left: dragging right fades it out and the newer one in. -->
@@ -456,15 +532,23 @@
         <span>{byId(bottomEra).label}</span>
       </label>
     {/if}
-    <button class="switch" role="switch" aria-checked={photosOn} onclick={() => (photosOn = !photosOn)}>
+    <button class="switch" role="switch" aria-checked={photosOn} onclick={() => {
+        photosOn = !photosOn;
+        analytics.track('photos_toggled', { on: photosOn });
+      }}>
       <Camera size={16} /><span>Fotografie</span><span class="track"></span>
     </button>
-    <button class="switch" role="switch" aria-checked={labels} onclick={() => (labels = !labels)}>
+    <button class="switch" role="switch" aria-checked={labels} onclick={() => {
+        labels = !labels;
+        analytics.track('labels_toggled', { on: labels });
+      }}>
       <Type size={16} /><span>Názvy obcí</span><span class="track"></span>
     </button>
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
 
-  <footer class="attribution">{attribution}</footer>
+  <footer class="attribution">
+    {#if analytics.enabled}<button class="privacy" onclick={() => (consentAsked = true)}>Cookies</button>{' · '}{/if}{attribution}
+  </footer>
 </main>

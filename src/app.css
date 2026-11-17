@@ -214,6 +214,8 @@ main { position: relative; height: 100dvh; display: flex; flex-direction: column
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .attribution:hover { white-space: normal; }
+.attribution .privacy { padding: 0; border: 0; background: none; color: inherit; font-size: inherit; text-decoration: underline; }
+.attribution .privacy:hover { color: var(--text); }
 
 .photo-card {
   position: absolute; z-index: 20; left: 12px; bottom: 12px; width: min(560px, calc(100vw - 24px));

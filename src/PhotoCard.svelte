@@ -3,8 +3,10 @@
   import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
   import BadgeCheck from '@lucide/svelte/icons/badge-check';
   import CircleDashed from '@lucide/svelte/icons/circle-dashed';
+  import { track } from './lib/analytics.js';
 
   let { photo, onclose } = $props();
+  const opened = (target) => () => track('photo_link_clicked', { target, page: photo.page });
 
   const proofText = $derived(
     {
@@ -41,20 +43,20 @@
   </header>
   <div class="pics" class:pair={photo.now}>
     <figure>
-      <a href={photo.page} target="_blank" rel="noopener"><img src={photo.img} alt={photo.title} /></a>
+      <a href={photo.page} target="_blank" rel="noopener" onclick={opened('commons')}><img src={photo.img} alt={photo.title} /></a>
       <figcaption>
         Kedysi · {photo.author || 'neznámy autor'} ·
         {#if photo.licenceUrl}<a href={photo.licenceUrl} target="_blank" rel="noopener">{photo.licence}</a>{:else}{photo.licence}{/if}
-        · <a href={photo.page} target="_blank" rel="noopener">Commons</a>
+        · <a href={photo.page} target="_blank" rel="noopener" onclick={opened('commons')}>Commons</a>
       </figcaption>
     </figure>
     {#if photo.now}
       <figure>
-        <a href={photo.now.url} target="_blank" rel="noopener"><img src={photo.now.img} alt="To isté miesto dnes" /></a>
+        <a href={photo.now.url} target="_blank" rel="noopener" onclick={opened('ajapaik')}><img src={photo.now.img} alt="To isté miesto dnes" /></a>
         <figcaption>
           Dnes{photo.now.date ? ` (${photo.now.date})` : ''} · {photo.now.by} ·
           <a href={photo.now.licenceUrl} target="_blank" rel="noopener">{nowLicence}</a> ·
-          <a href={photo.now.url} target="_blank" rel="noopener">Ajapaik</a>
+          <a href={photo.now.url} target="_blank" rel="noopener" onclick={opened('ajapaik')}>Ajapaik</a>
         </figcaption>
       </figure>
     {/if}
@@ -64,7 +66,7 @@
       {#if photo.approx}<CircleDashed size={15} />{:else}<BadgeCheck size={15} />{/if}
       <span>{proofText}{photo.azimuth != null ? ` · pohľad na ${Math.round((photo.azimuth + 360) % 360)}°` : ''}</span>
     </p>
-    <a class="streetview" class:primary={!photo.now} href={streetView} target="_blank" rel="noopener">
+    <a class="streetview" class:primary={!photo.now} href={streetView} target="_blank" rel="noopener" onclick={opened('streetview')}>
       {photo.now ? 'Street View' : 'Ako to vyzerá dnes? Street View'}
       <ArrowUpRight size={15} />
     </a>

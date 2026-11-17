@@ -4,13 +4,13 @@ const STORE = 'kad:view';
 export function readView(fallback) {
   const parts = location.hash.slice(1).split('/');
   if (parts.length >= 3 && parts.slice(0, 3).every((p) => p !== '' && !isNaN(+p))) {
-    return { zoom: +parts[0], lat: +parts[1], lng: +parts[2], left: parts[3], right: parts[4] };
+    return { zoom: +parts[0], lat: +parts[1], lng: +parts[2], left: parts[3], right: parts[4], from: 'permalink' };
   }
   try {
-    return { ...fallback, ...JSON.parse(localStorage.getItem(STORE)) };
-  } catch {
-    return fallback;
-  }
+    const saved = JSON.parse(localStorage.getItem(STORE));
+    if (saved) return { ...fallback, ...saved, from: 'remembered' };
+  } catch {}
+  return { ...fallback, from: 'default' };
 }
 
 export function writeView(v) {

@@ -10,6 +10,28 @@ function cacheSeconds(layer) {
   return layer.group === 'national' && layer.year < 2000 ? 30 * DAY : 7 * DAY;
 }
 
+// Same-origin proxy for PostHog's EU cloud (src/lib/analytics.js), so ad blockers do not drop the events.
+// /k/static/* and /k/array/* are SDK files and remote config from the asset host; everything else is the API.
+async function posthog(request, url, ctx) {
+  const path = url.pathname.slice(2) + url.search;
+  if (path.startsWith('/static/') || path.startsWith('/array/')) {
+    const hit = await caches.default.match(request);
+    if (hit) return hit;
+    const response = await fetch(`https://eu-assets.i.posthog.com${path}`);
+    if (response.ok) ctx.waitUntil(caches.default.put(request, response.clone()));
+    return response;
+  }
+  const headers = new Headers(request.headers);
+  headers.delete('cookie');
+  // The visitor's IP, for PostHog's country lookup and its cookieless visitor hash.
+  headers.set('X-Forwarded-For', request.headers.get('CF-Connecting-IP') || '');
+  return fetch(`https://eu.i.posthog.com${path}`, {
+    method: request.method,
+    headers,
+    body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -22,6 +44,8 @@ export default {
         { headers: { 'Cache-Control': 'private, no-store' } },
       );
     }
+
+    if (url.pathname.startsWith('/k/')) return posthog(request, url, ctx);
 
     const m = url.pathname.match(/^\/t\/([\w-]+)\/(\d{1,2})\/(\d+)\/(\d+)(?:\.\w+)?$/);
     if (!m || request.method !== 'GET') return new Response('Not found', { status: 404, headers: cors });

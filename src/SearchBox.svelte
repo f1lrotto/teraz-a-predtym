@@ -3,6 +3,7 @@
   import X from '@lucide/svelte/icons/x';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import { suggest } from './lib/search.js';
+  import { track } from './lib/analytics.js';
 
   // near() returns the map centre, so nearby places rank first; onpick(place) moves the map there.
   let { near, onpick } = $props();
@@ -35,10 +36,13 @@
       suggest(q, near(), ctrl.signal)
         .then((found) => {
           cache.set(key, found);
+          if (!found.length) track('search_failed', { query: q, reason: 'empty' });
           show(found);
         })
         .catch((e) => {
-          if (e.name !== 'AbortError') status = 'error';
+          if (e.name === 'AbortError') return;
+          status = 'error';
+          track('search_failed', { query: q, reason: 'error' });
         });
     }, 250);
     return () => {
@@ -56,6 +60,7 @@
   }
 
   function pick(place) {
+    track('place_searched', { query: query.trim(), place: place.name, kind: place.kind, rank: places.indexOf(place) });
     onpick(place);
     query = place.name;
     open = false;
