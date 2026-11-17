@@ -4,6 +4,7 @@
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
   import { onMount } from 'svelte';
   import EraPicker from './EraPicker.svelte';
+  import PhotoCard from './PhotoCard.svelte';
   import { byId, inBounds, nearestNational, sourceFor } from './lib/layers.js';
   import { captureDate } from './lib/capture.js';
   import { readView, writeView } from './lib/permalink.js';
@@ -27,6 +28,8 @@
   let hint = $state(!localStorage.getItem('kad:hinted'));
   let ready = $state(false);
   let labels = $state(localStorage.getItem('kad:labels') !== 'off');
+  let photosOn = $state(localStorage.getItem('kad:photos') !== 'off');
+  let photo = $state(null);
 
   let query = $state('');
   let results = $state([]);
@@ -43,7 +46,12 @@
   const bottomEra = $derived(topEra === left ? right : left);
 
   const attribution = $derived(
-    [...new Set([byId(left).attribution, byId(right).attribution]), 'Hranica © OpenStreetMap', 'Názvy GeoNames (CC BY 4.0)'].join(' · '),
+    [
+      ...new Set([byId(left).attribution, byId(right).attribution]),
+      'Hranica © OpenStreetMap',
+      'Názvy GeoNames (CC BY 4.0)',
+      ...(photosOn ? ['Fotografie Wikimedia Commons a Ajapaik (licencia pri každej)'] : []),
+    ].join(' · '),
   );
 
   const clip = $derived(
@@ -101,6 +109,56 @@
       map.addSource('mask', { type: 'geojson', data });
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#1d1b16', 'fill-opacity': 0.35 } }, 'sk-casing');
     });
+  }
+
+  // Historical photos with a confirmed place (scripts/build_photos.py), clustered when zoomed out.
+  const photoLayers = ['photo-clusters', 'photo-count', 'photo-points'];
+
+  function addPhotos(map) {
+    map.addSource('photos', { type: 'geojson', data: '/overlay/photos.geojson', cluster: true, clusterRadius: 36, clusterMaxZoom: 15 });
+    map.addLayer({
+      id: 'photo-clusters', type: 'circle', source: 'photos', filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#8a4b14', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+        'circle-radius': ['step', ['get', 'point_count'], 13, 10, 17, 50, 22],
+      },
+    });
+    map.addLayer({
+      id: 'photo-count', type: 'symbol', source: 'photos', filter: ['has', 'point_count'],
+      layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['Noto Sans Bold'], 'text-size': 12 },
+      paint: { 'text-color': '#fff' },
+    });
+    map.addLayer({
+      id: 'photo-points', type: 'circle', source: 'photos', filter: ['!', ['has', 'point_count']],
+      // Confirmed places are solid; approximate ones are hollow.
+      paint: {
+        'circle-color': ['case', ['==', ['get', 'approx'], true], '#fff', ['to-boolean', ['get', 'now']], '#c2410c', '#8a4b14'],
+        'circle-radius': ['case', ['==', ['get', 'approx'], true], 5.5, 7],
+        'circle-stroke-color': ['case', ['==', ['get', 'approx'], true], '#8a4b14', '#fff'],
+        'circle-stroke-width': ['case', ['==', ['get', 'approx'], true], 2.5, 2],
+      },
+    });
+    map.on('click', 'photo-points', (e) => {
+      const f = e.features[0];
+      const p = { ...f.properties };
+      // Older MapLibre versions hand nested objects back as JSON strings.
+      if (typeof p.now === 'string') p.now = JSON.parse(p.now);
+      [p.lng, p.lat] = f.geometry.coordinates;
+      photo = p;
+    });
+    map.on('click', 'photo-clusters', async (e) => {
+      const f = e.features[0];
+      const zoom = await map.getSource('photos').getClusterExpansionZoom(f.properties.cluster_id);
+      map.easeTo({ center: f.geometry.coordinates, zoom });
+    });
+    for (const id of ['photo-points', 'photo-clusters']) {
+      map.on('mouseenter', id, () => (map.getCanvas().style.cursor = 'pointer'));
+      map.on('mouseleave', id, () => (map.getCanvas().style.cursor = ''));
+    }
+  }
+
+  function setPhotos(map, on) {
+    for (const id of photoLayers) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   }
 
   function setLabels(map, on) {
@@ -171,6 +229,7 @@
     for (const m of [topMap, bottomMap]) {
       m.on('load', () => {
         addMask(m);
+        addPhotos(m);
         ready = ++loaded === 2;
       });
     }
@@ -199,6 +258,12 @@
   $effect(() => {
     localStorage.setItem('kad:labels', labels ? 'on' : 'off');
     if (ready) for (const m of [topMap, bottomMap]) setLabels(m, labels);
+  });
+
+  $effect(() => {
+    localStorage.setItem('kad:photos', photosOn ? 'on' : 'off');
+    if (!photosOn) photo = null;
+    if (ready) for (const m of [topMap, bottomMap]) setPhotos(m, photosOn);
   });
 
   $effect(() => {
@@ -356,6 +421,10 @@
       </div>
     {/if}
 
+    {#if photo}
+      <PhotoCard {photo} onclose={() => (photo = null)} />
+    {/if}
+
     {#if picker}
       <EraPicker side={picker} selected={picker === 'left' ? left : right} {center} onpick={pick} onclose={() => (picker = null)} />
     {/if}
@@ -384,6 +453,7 @@
           <input type="range" min="0" max="1" step="0.01" bind:value={opacity} aria-label="Priehľadnosť staršej vrstvy" />
         </label>
       {/if}
+      <button class="names" class:on={photosOn} onclick={() => (photosOn = !photosOn)} aria-pressed={photosOn}>Fotografie</button>
       <button class="names" class:on={labels} onclick={() => (labels = !labels)} aria-pressed={labels}>Názvy obcí</button>
       <button class="share" onclick={share}>Zdieľať</button>
     </div>

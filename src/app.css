@@ -108,3 +108,28 @@ main { position: relative; height: 100dvh; display: flex; flex-direction: column
 .attribution:hover { white-space: normal; }
 .names { border: 1px solid #cfc4aa; background: #fff; border-radius: 8px; padding: 8px 12px; }
 .names.on { background: var(--selected); border-color: var(--accent); }
+
+.photo-card {
+  position: absolute; z-index: 20; left: 12px; bottom: 12px; width: min(560px, calc(100vw - 24px));
+  max-height: calc(100% - 90px); overflow: auto; background: var(--panel); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 10px 12px;
+}
+.photo-card header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.photo-card header strong { font-size: 15px; }
+.photo-card .date { display: block; color: var(--muted); font-size: 12px; }
+.photo-card .close { border: 0; background: none; font-size: 16px; padding: 2px 6px; }
+.photo-card .pics { display: grid; gap: 8px; margin-top: 8px; }
+.photo-card .pics.pair { grid-template-columns: 1fr 1fr; }
+.photo-card figure { margin: 0; }
+.photo-card img { display: block; width: 100%; max-height: 300px; object-fit: contain; background: #e4dccb; border-radius: 6px; }
+.photo-card figcaption { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.photo-card figcaption a, .photo-card .proof { color: var(--accent); }
+.photo-card .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.photo-card .proof { font-size: 12px; margin: 0; }
+.photo-card .proof.approx { color: var(--muted); }
+.photo-card .streetview {
+  font-size: 12px; white-space: nowrap; color: var(--accent); border: 1px solid #cfc4aa; border-radius: 8px;
+  padding: 5px 10px; text-decoration: none; background: #fff;
+}
+.photo-card .streetview.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.portrait .photo-card .pics.pair { grid-template-columns: 1fr; }

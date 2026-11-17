@@ -6,6 +6,7 @@ A swipe map of Slovakia: one era on the left, another on the right, and a divide
 - `src/`: Svelte 5 + MapLibre GL frontend, built to `dist/`.
 - `worker/` and `wrangler.toml`: one Cloudflare Worker that serves `dist/` as static assets and runs the tile cache for the slow WMS servers (MŽP geocloud, city servers). `GET /t/{layer}/{z}/{x}/{y}` → 512 px GetMap, cached 30 days (7 for recent layers). Esri tiles never pass through it.
 - `public/overlay/`: Slovakia's border (OpenStreetMap) and place names (GeoNames, CC BY 4.0) drawn above every era; rebuild with `python3 scripts/build_overlay.py`.
+- `public/overlay/photos.geojson`: historical photos (Wikimedia Commons via Ajapaik, and Commons photos with a camera location), each with its licence and credit. Solid markers have a confirmed place, hollow ones an approximate place; every photo links to Google Street View at its spot. Rebuild with `python3 scripts/build_photos.py`.
 - `scripts/refresh_catalog.py`: weekly check (GitHub Actions, `.github/workflows/catalog.yml`). Marks layers whose sample tile fails as `broken` (the site and Worker hide them), updates the Esri capture-date release, and reports new layers at the sources in a pull request.
 
 ## Develop
@@ -24,4 +25,4 @@ For the "today" layer, create an ArcGIS Location Platform account (free tier: 2M
 
 ## Licences
 
-MŽP SR maps are CC0 / CC BY 4.0, Landsat (NASA GIBS) is open data. Esri imagery is shown under the Esri terms with attribution and is never cached. City photos and plans are © their providers with no open licence; each city can be switched off in the catalog.
+MŽP SR maps are CC0 / CC BY 4.0, Landsat (NASA GIBS) is open data. Esri imagery is shown under the Esri terms with attribution and is never cached. City photos and plans are © their providers with no open licence; each city can be switched off in the catalog. Historical photos are public domain or CC BY / CC BY-SA, credited on each photo card.
