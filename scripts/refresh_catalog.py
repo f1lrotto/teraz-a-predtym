@@ -2,7 +2,7 @@
 """Weekly catalog check. Updates catalog/layers.json in place and writes a Markdown report.
 
 - Checks one sample tile per layer and sets or clears "broken" (the site hides broken layers).
-- Points the "today" capture-date lookup at the newest Esri Wayback metadata release.
+- Points the Esri ("esri") capture-date lookup at the newest Esri Wayback metadata release.
 - Lists the MŽP, EOX and city services and reports names it has not seen before
   (remembered in the catalog's "watch" lists, so each is reported once).
 
@@ -91,21 +91,25 @@ def main():
 
     broken = []
     for layer in catalog['layers']:
+        if layer.get('euOnly'):
+            # Its server refuses connections from outside Europe, where the runner is; never hide it for that.
+            broken.append(f"- `{layer['id']}` ({layer['title']}): not checked, EU only")
+            continue
         problem = check_tile(layer)
         if problem:
             layer['broken'] = True
             broken.append(f"- `{layer['id']}` ({layer['title']}): {problem}")
         else:
             layer.pop('broken', None)
-    lines += ['## Tile check', *(broken or ['All layers returned tiles.']), '']
+    lines += ['## Tile check', *(broken or ['All checked layers returned tiles.']), '']
 
     try:
         _, _, body = get('https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json')
         releases = json.loads(body).values()
         newest = max(releases, key=lambda r: r['itemTitle'])
-        today = next(l for l in catalog['layers'] if l['id'] == 'today')
-        if today.get('metadata') != newest['metadataLayerUrl']:
-            today['metadata'] = newest['metadataLayerUrl']
+        esri = next(l for l in catalog['layers'] if l['id'] == 'esri')
+        if esri.get('metadata') != newest['metadataLayerUrl']:
+            esri['metadata'] = newest['metadataLayerUrl']
             lines += ['## Esri Wayback', f"- Capture dates now use {newest['itemTitle']}.", '']
     except Exception as e:  # noqa: BLE001
         lines += ['## Esri Wayback', f'- Release list unavailable: {e}', '']

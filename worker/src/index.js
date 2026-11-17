@@ -1,6 +1,6 @@
 // Tile cache in front of the slow WMS servers (MŽP geocloud and the city map servers).
 // GET /t/{layerId}/{z}/{x}/{y} → the layer's WMS GetMap for that 512 px tile, cached at the edge.
-// Only layers marked "proxy": true in catalog/layers.json are served; Esri tiles are never cached here.
+// Only layers marked "proxy": true in catalog/layers.json are served; Esri and GKÚ orthophoto tiles are never cached here.
 import { catalog, layerById, tileBbox, wmsUrl } from '../../catalog/tiles.js';
 
 const DAY = 86400;
@@ -15,6 +15,13 @@ export default {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { headers: { ...cors, 'Access-Control-Allow-Methods': 'GET' } });
     if (url.pathname === '/health') return new Response('ok', { headers: cors });
+    // Whether the visitor is in the EU, for layers whose server serves only European visitors ("euOnly" in the catalog).
+    if (url.pathname === '/geo') {
+      return Response.json(
+        { eu: request.cf?.isEUCountry === '1', country: request.cf?.country ?? null },
+        { headers: { 'Cache-Control': 'private, no-store' } },
+      );
+    }
 
     const m = url.pathname.match(/^\/t\/([\w-]+)\/(\d{1,2})\/(\d+)\/(\d+)(?:\.\w+)?$/);
     if (!m || request.method !== 'GET') return new Response('Not found', { status: 404, headers: cors });

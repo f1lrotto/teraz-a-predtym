@@ -5,7 +5,7 @@
   import { onMount } from 'svelte';
   import EraPicker from './EraPicker.svelte';
   import PhotoCard from './PhotoCard.svelte';
-  import { byId, inBounds, nearestNational, sourceFor } from './lib/layers.js';
+  import { available, byId, inBounds, nearestNational, sourceFor } from './lib/layers.js';
   import { captureDate } from './lib/capture.js';
   import { readView, writeView } from './lib/permalink.js';
 
@@ -30,6 +30,8 @@
   let labels = $state(localStorage.getItem('kad:labels') !== 'off');
   let photosOn = $state(localStorage.getItem('kad:photos') !== 'off');
   let photo = $state(null);
+  // true or false once /geo answers; null until then (EU-only eras stay offered meanwhile).
+  let eu = $state(null);
 
   let query = $state('');
   let results = $state([]);
@@ -192,14 +194,14 @@
     const below = map.getLayer('mask') ? 'mask' : 'sk-casing';
     map.addLayer({ id: 'era', type: 'raster', source: 'era', paint: { 'raster-fade-duration': 150 } }, below);
     map.era = id;
-    if (id === 'today') esriDown = false;
+    if (id === 'esri') esriDown = false;
   }
 
   function track(map, key) {
     map.on('dataloading', () => (loading[key] = true));
     map.on('idle', () => (loading[key] = false));
     map.on('error', (e) => {
-      if (map.era === 'today' && [401, 403, 429].includes(e.error?.status)) esriDown = true;
+      if (map.era === 'esri' && [401, 403, 429].includes(e.error?.status)) esriDown = true;
     });
   }
 
@@ -207,6 +209,10 @@
     const updateOrientation = () => (portrait = innerHeight > innerWidth && innerWidth < 800);
     updateOrientation();
     addEventListener('resize', updateOrientation);
+    fetch('/geo')
+      .then((r) => r.json())
+      .then((g) => (eu = g.eu))
+      .catch(() => {});
 
     bottomMap = makeMap(bottomEl);
     topMap = makeMap(topEl);
@@ -273,14 +279,18 @@
   // Keep the URL and the remembered view current.
   $effect(() => writeView({ ...center, left, right }));
 
-  // A city era makes no sense outside its city: fall back to the closest nationwide era.
+  // A city era makes no sense outside its city, and an EU-only era does not load outside the EU:
+  // fall back to the closest nationwide era this visitor can load.
   $effect(() => {
     const { lng, lat } = center;
     for (const side of ['left', 'right']) {
       const layer = byId(side === 'left' ? left : right);
-      if (layer.group === 'national' || inBounds(layer, lng, lat)) continue;
-      const next = nearestNational(layer.year);
-      notice = `${layer.title} → ${next.label}: mimo mesta už nie sú dáta`;
+      const outsideCity = layer.group !== 'national' && !inBounds(layer, lng, lat);
+      if (!outsideCity && available(layer, eu)) continue;
+      const next = nearestNational(layer.year, eu);
+      notice = outsideCity
+        ? `${layer.title} → ${next.label}: mimo mesta už nie sú dáta`
+        : `${layer.label} → ${next.label}: letecká snímka GKÚ je dostupná len v EÚ`;
       if (side === 'left') left = next.id;
       else right = next.id;
       setTimeout(() => (notice = ''), 4000);
@@ -371,8 +381,8 @@
   }
 
   function useFallback(id) {
-    if (left === 'today') left = id;
-    if (right === 'today') right = id;
+    if (left === 'esri') left = id;
+    if (right === 'esri') right = id;
   }
 </script>
 
@@ -412,9 +422,9 @@
 
     {#if esriDown}
       <div class="esri-down">
-        Dnešná snímka je teraz nedostupná, skúste neskôr.
+        Satelitná snímka Esri je teraz nedostupná, skúste neskôr.
         <span>
-          {#each byId('today').fallback as id (id)}
+          {#each byId('esri').fallback as id (id)}
             <button onclick={() => useFallback(id)}>{byId(id).label}</button>
           {/each}
         </span>
@@ -426,7 +436,7 @@
     {/if}
 
     {#if picker}
-      <EraPicker side={picker} selected={picker === 'left' ? left : right} {center} onpick={pick} onclose={() => (picker = null)} />
+      <EraPicker side={picker} selected={picker === 'left' ? left : right} {center} {eu} onpick={pick} onclose={() => (picker = null)} />
     {/if}
   </div>
 

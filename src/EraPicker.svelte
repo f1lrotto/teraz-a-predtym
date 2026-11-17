@@ -1,7 +1,7 @@
 <script>
-  import { erasAt } from './lib/layers.js';
+  import { available, erasAt } from './lib/layers.js';
 
-  let { side, selected, center, onpick, onclose } = $props();
+  let { side, selected, center, eu, onpick, onclose } = $props();
   const eras = $derived(erasAt(center.lng, center.lat));
 </script>
 
@@ -16,10 +16,12 @@
   <ul>
     {#each eras.national as { layer, here } (layer.id)}
       <li>
-        <button class:active={layer.id === selected} disabled={!here} onclick={() => onpick(layer.id)}>
+        <button class:active={layer.id === selected} disabled={!here || !available(layer, eu)} onclick={() => onpick(layer.id)}>
           <span class="label">{layer.label}</span>
           <span class="title">{layer.title}</span>
-          {#if !here}<span class="none">tu nie sú dáta</span>{:else if layer.note}<span class="note">{layer.note}</span>{/if}
+          {#if !available(layer, eu)}<span class="none">dostupné len v EÚ</span>
+          {:else if !here}<span class="none">tu nie sú dáta</span>
+          {:else if layer.note}<span class="note">{layer.note}</span>{/if}
         </button>
       </li>
     {/each}

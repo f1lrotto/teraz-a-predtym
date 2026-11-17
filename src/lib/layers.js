@@ -47,7 +47,16 @@ export function erasAt(lng, lat) {
   };
 }
 
-// The nationwide era closest in time, used when the view leaves a city.
-export function nearestNational(year) {
-  return national.reduce((best, l) => (Math.abs(l.year - year) < Math.abs(best.year - year) ? l : best));
+// "euOnly" layers come from servers that block visitors outside Europe, so the site offers them in the EU only.
+// `eu` is null until /geo answers (or when it fails), and then the layer stays offered.
+export function available(layer, eu) {
+  return !layer.euOnly || eu !== false;
+}
+
+// The nationwide era closest in time that this visitor can load, used when the view leaves a city
+// or an EU-only era is unavailable.
+export function nearestNational(year, eu) {
+  return national
+    .filter((l) => available(l, eu))
+    .reduce((best, l) => (Math.abs(l.year - year) < Math.abs(best.year - year) ? l : best));
 }

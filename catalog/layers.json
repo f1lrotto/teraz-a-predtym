@@ -223,9 +223,29 @@
     {
       "id": "today",
       "group": "national",
-      "year": 2026,
+      "year": 2024,
       "label": "Dnes",
-      "title": "Esri World Imagery",
+      "title": "Letecká snímka GKÚ (ortofotomozaika SR)",
+      "kind": "xyz",
+      "url": "https://zbgis.skgeodesy.sk/zbgis/rest/services/Ortofoto/MapServer/tile/{z}/{y}/{x}",
+      "tileSize": 256,
+      "maxzoom": 19,
+      "bounds": [
+        16.8,
+        47.7,
+        22.6,
+        49.65
+      ],
+      "attribution": "Ortofotomozaika SR © GKÚ Bratislava, NLC",
+      "license": "GKÚ: použitie ako podkladová mapa povolené s uvedením zdroja",
+      "euOnly": true
+    },
+    {
+      "id": "esri",
+      "group": "national",
+      "year": 2025,
+      "label": "Satelit",
+      "title": "Esri World Imagery (satelitná snímka)",
       "kind": "xyz",
       "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       "keyedUrl": "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token={key}",

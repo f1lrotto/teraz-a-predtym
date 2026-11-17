@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     host: true,
     allowedHosts: true,
-    // Tile requests go to the local Worker from `npm run dev:tiles`.
-    proxy: { '/t/': 'http://localhost:8787' },
+    // Tile and geo requests go to the local Worker from `npm run dev:tiles`.
+    proxy: { '/t/': 'http://localhost:8787', '/geo': 'http://localhost:8787' },
   },
   preview: { host: true, allowedHosts: true },
 });
