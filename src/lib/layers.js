@@ -1,6 +1,5 @@
 import { catalog, wmsUrl, WMS_TILE_SIZE } from '../../catalog/tiles.js';
 
-const PROXY = (import.meta.env.VITE_TILE_PROXY || '').replace(/\/$/, '');
 const ESRI_KEY = import.meta.env.VITE_ESRI_KEY || '';
 
 // Layers the site shows: not switched off, not marked broken by the weekly check, city extras only when enabled.
@@ -23,7 +22,8 @@ export function inBounds(layer, lng, lat) {
 export function sourceFor(layer) {
   const common = { type: 'raster', maxzoom: layer.maxzoom, bounds: layer.bounds };
   if (layer.kind === 'wms') {
-    const tiles = [PROXY && layer.proxy ? `${PROXY}/t/${layer.id}/{z}/{x}/{y}` : wmsUrl(layer, '{bbox-epsg-3857}')];
+    // Proxied layers go through the same-origin tile cache (worker/src/index.js); the rest hit the WMS directly.
+    const tiles = [layer.proxy ? `${location.origin}/t/${layer.id}/{z}/{x}/{y}` : wmsUrl(layer, '{bbox-epsg-3857}')];
     return { ...common, tiles, tileSize: WMS_TILE_SIZE };
   }
   const url = ESRI_KEY && layer.keyedUrl ? layer.keyedUrl.replace('{key}', ESRI_KEY) : layer.url;

@@ -1,0 +1,11 @@
+# One Worker serves the built site (dist/) as static assets and the /t/ tile cache as code.
+name = "kedysi-a-dnes"
+main = "worker/src/index.js"
+compatibility_date = "2026-11-01"
+account_id = "36cb803729ff886641301c50a8961158"
+
+routes = [{ pattern = "kedysi.filiphupka.com", custom_domain = true }]
+
+[assets]
+directory = "./dist"
+
