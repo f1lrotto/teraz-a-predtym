@@ -1,3 +1,4 @@
+import '@fontsource-variable/geist';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './app.css';
 import { mount } from 'svelte';

@@ -1,4 +1,9 @@
 <script>
+  import X from '@lucide/svelte/icons/x';
+  import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
+  import BadgeCheck from '@lucide/svelte/icons/badge-check';
+  import CircleDashed from '@lucide/svelte/icons/circle-dashed';
+
   let { photo, onclose } = $props();
 
   const proofText = $derived(
@@ -32,7 +37,7 @@
       <strong>{photo.title}</strong>
       {#if photo.date}<span class="date">{photo.date}</span>{/if}
     </div>
-    <button class="close" onclick={onclose} aria-label="Zavrieť">✕</button>
+    <button class="close" onclick={onclose} aria-label="Zavrieť"><X size={18} /></button>
   </header>
   <div class="pics" class:pair={photo.now}>
     <figure>
@@ -56,10 +61,12 @@
   </div>
   <div class="foot">
     <p class="proof" class:approx={photo.approx}>
-      {proofText}{photo.azimuth != null ? ` · pohľad na ${Math.round((photo.azimuth + 360) % 360)}°` : ''}
+      {#if photo.approx}<CircleDashed size={15} />{:else}<BadgeCheck size={15} />{/if}
+      <span>{proofText}{photo.azimuth != null ? ` · pohľad na ${Math.round((photo.azimuth + 360) % 360)}°` : ''}</span>
     </p>
     <a class="streetview" class:primary={!photo.now} href={streetView} target="_blank" rel="noopener">
-      {photo.now ? 'Street View' : 'Ako to vyzerá dnes? Street View'} ↗
+      {photo.now ? 'Street View' : 'Ako to vyzerá dnes? Street View'}
+      <ArrowUpRight size={15} />
     </a>
   </div>
 </aside>

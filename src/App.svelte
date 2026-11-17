@@ -3,8 +3,18 @@
   // MapLibre loads its worker relative to its own module, which Vite moves; hand it the bundled URL instead.
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
   import { onMount } from 'svelte';
+  import ChevronsLeftRight from '@lucide/svelte/icons/chevrons-left-right';
+  import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import Columns2 from '@lucide/svelte/icons/columns-2';
+  import Blend from '@lucide/svelte/icons/blend';
+  import Camera from '@lucide/svelte/icons/camera';
+  import Type from '@lucide/svelte/icons/type';
+  import Share2 from '@lucide/svelte/icons/share-2';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import EraPicker from './EraPicker.svelte';
   import PhotoCard from './PhotoCard.svelte';
+  import SearchBox from './SearchBox.svelte';
   import { available, byId, inBounds, nearestNational, sourceFor } from './lib/layers.js';
   import { captureDate } from './lib/capture.js';
   import { readView, writeView } from './lib/permalink.js';
@@ -32,11 +42,6 @@
   let photo = $state(null);
   // true or false once /geo answers; null until then (EU-only eras stay offered meanwhile).
   let eu = $state(null);
-
-  let query = $state('');
-  let results = $state([]);
-  let searchMsg = $state('');
-  let lastSearch = 0;
 
   let stage, topEl, bottomEl;
   let topMap, bottomMap;
@@ -337,28 +342,9 @@
     if (step) split = Math.min(0.98, Math.max(0.02, split + step));
   }
 
-  async function search(e) {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
-    // Nominatim allows at most one request per second.
-    if (Date.now() - lastSearch < 1000) return;
-    lastSearch = Date.now();
-    searchMsg = 'Hľadám…';
-    try {
-      const params = new URLSearchParams({ q, format: 'jsonv2', countrycodes: 'sk', limit: '6', 'accept-language': 'sk' });
-      results = await (await fetch(`https://nominatim.openstreetmap.org/search?${params}`)).json();
-      searchMsg = results.length ? '' : 'Nič sa nenašlo';
-    } catch {
-      searchMsg = 'Vyhľadávanie nie je dostupné';
-    }
-  }
-
-  function go(r) {
-    const [s, n, w, e] = r.boundingbox.map(Number);
-    topMap.fitBounds([[w, s], [e, n]], { maxZoom: 16, duration: 1200 });
-    results = [];
-    query = r.name || query;
+  function go(place) {
+    if (place.bounds) topMap.fitBounds(place.bounds, { maxZoom: 16, duration: 1200 });
+    else topMap.flyTo({ center: [place.lng, place.lat], zoom: place.zoom, duration: 1200 });
   }
 
   async function share() {
@@ -403,15 +389,20 @@
         aria-label="Deliaca čiara"
         aria-valuenow={Math.round(split * 100)}
       >
-        <span class="knob">{portrait ? '⇕' : '⇔'}</span>
-        {#if hint}<span class="hint-text">potiahnite</span>{/if}
+        <span class="knob">
+          {#if portrait}<ChevronsUpDown size={20} />{:else}<ChevronsLeftRight size={20} />{/if}
+        </span>
+        {#if hint}<span class="hint-text">Potiahnite</span>{/if}
       </div>
     {/if}
 
     {#each [['left', left, loading[topEra === left ? 'top' : 'bottom']], ['right', right, loading[topEra === right ? 'top' : 'bottom']]] as [side, id, busy] (side)}
       {@const layer = byId(id)}
       <button class="era-card {side}" onclick={() => (picker = picker === side ? null : side)} aria-haspopup="dialog">
-        <span class="era-label">{layer.label} <span class="caret">▾</span></span>
+        <span class="era-head">
+          <span class="era-label">{layer.label}</span>
+          <span class="era-change"><ChevronDown size={16} /></span>
+        </span>
         <span class="era-title">{layer.title}</span>
         {#if capture[id]}<span class="era-sub">{capture[id]}</span>{/if}
         {#if layer.warn}<span class="era-sub warn">{layer.note}</span>{/if}
@@ -421,8 +412,8 @@
     {/each}
 
     {#if esriDown}
-      <div class="esri-down">
-        Satelitná snímka Esri je teraz nedostupná, skúste neskôr.
+      <div class="esri-down" role="alert">
+        <p><TriangleAlert size={16} /> Satelitná snímka Esri je teraz nedostupná, skúste neskôr.</p>
         <span>
           {#each byId('esri').fallback as id (id)}
             <button onclick={() => useFallback(id)}>{byId(id).label}</button>
@@ -440,33 +431,37 @@
     {/if}
   </div>
 
-  <div class="toolbar">
-    <form class="search" onsubmit={search}>
-      <input type="search" bind:value={query} placeholder="Obec, mesto alebo ulica…" aria-label="Hľadať miesto" />
-      {#if results.length || searchMsg}
-        <ul class="results">
-          {#if searchMsg}<li class="msg">{searchMsg}</li>{/if}
-          {#each results as r (r.place_id)}
-            <li><button type="button" onclick={() => go(r)}>{r.display_name}</button></li>
-          {/each}
-        </ul>
-      {/if}
-    </form>
-    <div class="controls">
-      <div class="seg" role="group" aria-label="Spôsob porovnania">
-        <button class:on={mode === 'swipe'} onclick={() => (mode = 'swipe')}>Posuvník</button>
-        <button class:on={mode === 'opacity'} onclick={() => (mode = 'opacity')}>Priehľadnosť</button>
-      </div>
-      {#if mode === 'opacity'}
-        <label class="opacity">
-          <span>{byId(topEra).label}</span>
-          <input type="range" min="0" max="1" step="0.01" bind:value={opacity} aria-label="Priehľadnosť staršej vrstvy" />
-        </label>
-      {/if}
-      <button class="names" class:on={photosOn} onclick={() => (photosOn = !photosOn)} aria-pressed={photosOn}>Fotografie</button>
-      <button class="names" class:on={labels} onclick={() => (labels = !labels)} aria-pressed={labels}>Názvy obcí</button>
-      <button class="share" onclick={share}>Zdieľať</button>
+  <div class="dock">
+    <div class="brand"><span class="mark"></span>Kedysi a dnes</div>
+    <SearchBox near={() => topMap.getCenter()} onpick={go} />
+    <button class="share" onclick={share} aria-label="Zdieľať odkaz" title="Zdieľať odkaz">
+      <Share2 size={16} /><span>Zdieľať</span>
+    </button>
+    <div class="seg" role="group" aria-label="Spôsob porovnania">
+      <button aria-pressed={mode === 'swipe'} onclick={() => (mode = 'swipe')}><Columns2 size={16} />Slider</button>
+      <button aria-pressed={mode === 'opacity'} onclick={() => (mode = 'opacity')}><Blend size={16} />Priehľadnosť</button>
     </div>
+    {#if mode === 'opacity'}
+      <!-- Older era on the left: dragging right fades it out and the newer one in. -->
+      <label class="fade">
+        <span>{byId(topEra).label}</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          bind:value={() => 1 - opacity, (v) => (opacity = 1 - v)}
+          aria-label="Prechod medzi obdobiami"
+        />
+        <span>{byId(bottomEra).label}</span>
+      </label>
+    {/if}
+    <button class="switch" role="switch" aria-checked={photosOn} onclick={() => (photosOn = !photosOn)}>
+      <Camera size={16} /><span>Fotografie</span><span class="track"></span>
+    </button>
+    <button class="switch" role="switch" aria-checked={labels} onclick={() => (labels = !labels)}>
+      <Type size={16} /><span>Názvy obcí</span><span class="track"></span>
+    </button>
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
