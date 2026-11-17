@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The header mark: an era on each side of a divider. -->
-  <rect width="32" height="32" rx="9" fill="#e6d3bf"/>
-  <path d="M16 0h7a9 9 0 0 1 9 9v14a9 9 0 0 1-9 9h-7z" fill="#c0512a"/>
+  <!-- Slovakia, an earlier era on the left and today on the right. -->
+  <rect width="32" height="32" rx="9" fill="#1f1c1a"/>
+  <path d="M2.2 18.1L3.5 20.2L3.4 20.7L4.7 20.9L6.5 22.7L11.0 22.6L12.0 22.2L11.5 21.6L11.8 20.5L14.9 20.3L15.7 19.1L16.0 19.3L16.0 10.6L15.7 10.6L14.9 9.2L13.4 10.7L12.5 10.7L12.4 9.8L10.6 9.9L9.7 11.2L8.7 11.5L8.3 13.2L7.5 13.5L7.3 14.1L5.6 15.0L4.0 14.5L3.6 14.8Z" fill="#e6d3bf"/>
+  <path d="M16.0 19.3L17.1 19.9L18.1 19.0L19.0 18.9L20.1 16.9L21.5 16.7L22.8 17.3L24.4 16.6L25.2 17.2L25.7 18.3L27.7 18.1L27.9 16.6L28.7 15.9L28.9 14.6L29.7 13.6L29.5 12.9L27.3 12.1L26.9 11.1L26.0 11.0L25.3 10.4L22.8 10.4L21.9 11.5L20.9 10.6L19.0 10.7L19.0 11.1L18.1 11.3L17.8 12.3L17.1 11.9L16.3 12.1L16.4 10.6L16.0 10.6Z" fill="#c0512a"/>
 </svg>
