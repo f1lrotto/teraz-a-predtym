@@ -1,5 +1,5 @@
 # One Worker serves the built site (dist/) as static assets and the /t/ tile cache as code.
-name = "kedysi-a-dnes"
+name = "teraz-a-predtym"
 main = "worker/src/index.js"
 compatibility_date = "2026-11-01"
 account_id = "36cb803729ff886641301c50a8961158"
